@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>서울 행정동 업종 추천</title>
+  <style>
+    body { margin:0; font-family: system-ui, -apple-system, sans-serif; background:#fafafa; }
+    .container { max-width: 980px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 12px; }
+    .panel { background:#fff; border:1px solid #eee; border-radius:16px; padding:16px; box-shadow: 0 2px 12px rgba(0,0,0,0.03); }
+    .row { display:flex; gap:10px; flex-wrap:wrap; margin: 10px 0; }
+    input, select, button { padding:10px 12px; font-size:14px; border:1px solid #ddd; border-radius:10px; }
+    input { flex: 1; min-width: 240px; }
+    button { cursor:pointer; border:1px solid #222; background:#222; color:#fff; }
+    button:disabled { opacity:0.5; cursor:not-allowed; }
+    .help { color:#666; font-size:13px; margin-top:6px; }
+    .list { margin-top:10px; border-top:1px solid #eee; }
+    .item { padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; gap:12px; }
+    .item:hover { background:#f7f7f7; cursor:pointer; }
+    .tag { font-size:12px; color:#666; }
+    .cards { margin-top: 14px; display:grid; grid-template-columns: 1fr; gap: 10px; }
+    .card { border:1px solid #eee; border-radius:14px; padding:12px; }
+    .title { font-weight:700; }
+    .meta { font-size:12px; color:#666; margin-top:6px; }
+    .badge { display:inline-block; padding:2px 8px; border-radius:999px; background:#f3f3f3; font-size:12px; margin-left:6px; }
+    .reason { font-size:13px; margin:4px 0; color:#333; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>서울 행정동 유망 업종 추천</h1>
+    <div class="panel">
+      <div class="row">
+        <select id="quarter"></select>
+        <input id="q" placeholder="행정동 코드(예: 11740620) 또는 동 이름(예: 대치)로 검색" />
+        <button id="btnSearch">검색</button>
+      </div>
+
+      <div class="help">
+        • 검색 결과에서 행정동을 클릭하면 추천이 실행됩니다. <br/>
+        • alpha가 클수록 “안정형(폐업 위험 낮은)” 위주로 추천합니다.
+      </div>
+
+      <div class="row">
+        <input id="topN" type="number" value="10" min="1" max="50" style="width:120px;" />
+        <input id="alpha" type="number" step="0.1" value="1.0" min="0" max="5" style="width:120px;" />
+      </div>
+
+      <div id="searchResult" class="list"></div>
+
+      <div id="recHeader" style="margin-top:14px; font-weight:700;"></div>
+      <div id="recommendations" class="cards"></div>
+    </div>
+  </div>
+
+<script>
+  const API = "http://localhost:8000";
+
+  async function loadQuarters() {
+    const res = await fetch(`${API}/quarters`);
+    const data = await res.json();
+    const qSel = document.getElementById('quarter');
+    qSel.innerHTML = "";
+    data.quarters.forEach(q => {
+      const opt = document.createElement("option");
+      opt.value = q;
+      opt.textContent = q;
+      qSel.appendChild(opt);
+    });
+    if (data.quarters.length) qSel.value = data.quarters[data.quarters.length - 1];
+  }
+
+  function renderSearchItems(items) {
+    const box = document.getElementById("searchResult");
+    if (!items || !items.length) {
+      box.innerHTML = `<div class="item"><span>검색 결과가 없어요.</span></div>`;
+      return;
+    }
+    box.innerHTML = items.map(it => {
+      const name = it.dong_name ? it.dong_name : "(이름 데이터 없음)";
+      return `
+        <div class="item" data-code="${it.dong_code}">
+          <div>
+            <div><b>${it.dong_code}</b> <span class="tag">${name}</span></div>
+          </div>
+          <div class="tag">클릭해서 추천</div>
+        </div>
+      `;
+    }).join("");
+
+    // 클릭 이벤트
+    document.querySelectorAll(".item[data-code]").forEach(el => {
+      el.addEventListener("click", async () => {
+        const code = el.getAttribute("data-code");
+        await recommend(code);
+      });
+    });
+  }
+
+  function cardHTML(item, rank) {
+    const name = item.biz_name ? item.biz_name : item.biz_code;
+    const reasons = (item.reasons || []).map(r => `<div class="reason">• ${r}</div>`).join("");
+    return `
+      <div class="card">
+        <div class="title">${rank}. ${name} <span class="badge">score ${item.score.toFixed(3)}</span></div>
+        <div class="meta">성장확률 ${item.proba_growth.toFixed(3)} · 위험확률 ${item.proba_risk.toFixed(3)}</div>
+        ${reasons}
+      </div>
+    `;
+  }
+
+  async function searchDong() {
+    const quarter = document.getElementById('quarter').value;
+    const q = document.getElementById('q').value.trim();
+
+    document.getElementById("recommendations").innerHTML = "";
+    document.getElementById("recHeader").textContent = "";
+
+    if (!q) {
+      renderSearchItems([]);
+      return;
+    }
+
+    const url = `${API}/search_dong?q=${encodeURIComponent(q)}&quarter=${encodeURIComponent(quarter)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    renderSearchItems(data.items);
+  }
+
+  async function recommend(dong_code) {
+    const quarter = document.getElementById('quarter').value;
+    const topN = document.getElementById('topN').value;
+    const alpha = document.getElementById('alpha').value;
+
+    const url = `${API}/recommend?dong_code=${encodeURIComponent(dong_code)}&quarter=${encodeURIComponent(quarter)}&top_n=${topN}&alpha=${alpha}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    const header = document.getElementById("recHeader");
+    header.textContent = `추천 결과: ${dong_code} / ${quarter}`;
+
+    const box = document.getElementById("recommendations");
+    if (!data.items || !data.items.length) {
+      box.innerHTML = `<div class="card">추천 결과가 없어요. (데이터/분기 확인)</div>`;
+      return;
+    }
+    box.innerHTML = data.items.map((it, i) => cardHTML(it, i+1)).join("");
+  }
+
+  document.getElementById('btnSearch').addEventListener('click', searchDong);
+  document.getElementById('q').addEventListener('keydown', (e) => {
+    if (e.key === "Enter") searchDong();
+  });
+
+  loadQuarters();
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (있으면)
+.env
+
+# Large data / model artifacts (Git LFS 쓰지 않으면 업로드 비추)
+*.parquet
+*.pkl
+
+# Logs
+*.log
