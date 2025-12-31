@@ -10,20 +10,6 @@
 
 ---
 
-## 프로젝트 구조
-
-├─ app.py # FastAPI 서버 (추천 API)
-├─ index.html # 프론트(검색/추천 UI)
-├─ features_panel.parquet # 모델 입력 데이터(패널)
-├─ model_growth.pkl # 성장 모델
-├─ model_risk.pkl # 위험 모델
-├─ biz_code_map.csv # 업종 코드 → 업종명 매핑
-├─ dong_map.csv # 행정동 코드 → 행정동명 매핑
-└─ notebooks/ # (추가) 코랩 노트북 3개
- ├─ 01_데이터수집_전처리.ipynb
- ├─ 02_모델링_검증.ipynb
- └─ 03_추천시스템_데모.ipynb
-
 ## 실행 방법 (로컬)
 
 ### 1) 설치
